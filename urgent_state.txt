@@ -32,9 +32,9 @@
 2667|2026-11-28|18:30|Platz 8 / Platz 5 / Platz 6 / Platz 7 · 18:30-20:30
 2667|2026-11-28|19:00|Platz 4 / Platz 1 / Platz 2 / Platz 3 · 19:00-21:00
 2667|2026-11-28|19:30|Platz 8 / Platz 5 / Platz 6 / Platz 7 · 19:30-21:30
-2667|2026-11-29|17:00|Platz 4 / Platz 1 / Platz 2 / Platz 3 · 17:00-19:00
+2667|2026-11-29|17:00|Platz 4 / Platz 1 / Platz 2 · 17:00-19:00
 2667|2026-11-29|17:30|Platz 8 / Platz 5 / Platz 6 / Platz 7 · 17:30-19:30
-2667|2026-11-29|18:00|Platz 4 / Platz 1 / Platz 2 / Platz 3 · 18:00-20:00
+2667|2026-11-29|18:00|Platz 4 / Platz 1 / Platz 2 · 18:00-20:00
 2667|2026-11-29|18:30|Platz 8 / Platz 5 / Platz 6 / Platz 7 · 18:30-20:30
 2667|2026-11-29|19:00|Platz 4 / Platz 1 / Platz 2 / Platz 3 · 19:00-21:00
 2667|2026-11-29|19:30|Platz 8 / Platz 5 / Platz 6 / Platz 7 · 19:30-21:30
