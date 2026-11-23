@@ -163,8 +163,9 @@ def _git(*args, check=True):
 def save_files(message, add=(), remove=()):
     """Saves files to GitHub (used by the Telegram bot and by every workflow). If another run changed the same file at the same moment (for example the urgent
     check saved urgent_state.txt while you pressed Stop), our change is put on top of the newest version."""
-    _git("config", "user.name", "watcher")
-    _git("config", "user.email", "watcher@users.noreply.github.com")
+    # GitHub's own bot identity (the old name "watcher" belonged to a stranger's GitHub account)
+    _git("config", "user.name", "github-actions[bot]")
+    _git("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
     wanted = {}
     for f in add:                                   # remember what we want to save
         try:
