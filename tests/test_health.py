@@ -1,0 +1,158 @@
+import os, sys, tempfile, datetime as dt
+sys.path.insert(0, os.getcwd())
+import shared as W
+os.chdir(tempfile.mkdtemp()); os.makedirs("state", exist_ok=True)
+fails = []
+def check(c, m):
+    print(("PASS " if c else "FAIL ") + m)
+    if not c: fails.append(m)
+sent = []
+def send(t): sent.append(t); return True
+T = dt.datetime(2026, 11, 20, 12, 0, tzinfo=dt.timezone.utc)
+
+# one good run: nothing happens, no file
+check(W.health_report("sunset", True, send=send, now=T) is None and not sent and not W.health_path("sunset").exists(), "good run writes nothing")
+# first failure: no message yet (threshold 2), file counts 1
+check(W.health_report("sunset", False, "no events found on the page", send=send, now=T) is None and not sent, "1st failure is silent")
+st = W.health_read("sunset")
+check(st and st["fails"] == 1 and not st["warned"], "failure counter = 1")
+# second failure: ONE warning
+m = W.health_report("sunset", False, "no events found on the page", send=send, now=T + dt.timedelta(minutes=5))
+check(m and len(sent) == 1 and "page looks different" in sent[0] and "Sun Set events" in sent[0] and "2 times in a row" in sent[0], "2nd failure sends one warning")
+check("no events found" in sent[0], "warning names the reason")
+# third, fourth: no more spam
+W.health_report("sunset", False, "x", send=send, now=T + dt.timedelta(minutes=10))
+W.health_report("sunset", False, "x", send=send, now=T + dt.timedelta(minutes=15))
+check(len(sent) == 1, "no repeated warnings")
+check(W.health_read("sunset")["since"] == T and W.health_read("sunset")["fails"] == 4, "since stays at the first failure")
+# recovery: one message, file reset
+m = W.health_report("sunset", True, send=send, now=T + dt.timedelta(minutes=20))
+check(m and len(sent) == 2 and "can be read again" in sent[1], "recovery message")
+check(W.health_read("sunset") is None and open("state/health_sunset.txt").read().strip() == "ok", "file back to ok")
+check(W.health_report("sunset", True, send=send, now=T) is None and len(sent) == 2, "good runs after recovery are silent")
+# threshold 1 (button): warns at once
+sent.clear()
+W.health_report("courts", False, "no location could be read", threshold=1, send=send, now=T)
+check(len(sent) == 1 and "Court checks" in sent[0], "threshold 1 warns immediately")
+# a failed Telegram send is retried next run
+sent.clear()
+W.health_report("events", False, "a", send=lambda t: False, now=T)
+W.health_report("events", False, "a", send=lambda t: False, now=T)
+check(W.health_read("events")["warned"] is False, "unsent warning is not marked as sent")
+W.health_report("events", False, "a", send=send, now=T)
+check(len(sent) == 1 and W.health_read("events")["warned"], "warning goes out when Telegram works again")
+# detail with odd characters never breaks the file
+W.health_report("events", False, "a | b\nc", send=send, now=T)
+check(W.health_read("events") is not None, "special characters in the reason are safe")
+# broken file reads as ok
+open("state/health_events.txt", "w").write("garbage\n")
+check(W.health_read("events") is None, "broken health file is treated as ok")
+
+# ---- end to end: sunset_events.py on a page that cannot be read
+import sunset_events as CK
+msgs = []
+W.telegram = lambda t: (msgs.append(t), True)[1]
+orig = W.health_report
+W.health_report = lambda name, ok, detail="", threshold=2, send=None, now=None: orig(name, ok, detail, threshold, send or W.telegram, now)
+CK.set_output = lambda n, v: None
+os.chdir(tempfile.mkdtemp()); os.makedirs("state", exist_ok=True)
+CK.read_page = lambda: "maintenance"
+for i in range(3):
+    try:
+        CK.main(); check(False, "sunset_events.py must stop on an unreadable page")
+    except SystemExit as e:
+        check(e.code == 2, f"run {i + 1}: sunset_events.py exits with code 2")
+check(len(msgs) == 1 and "Sun Set events" in msgs[0], "3 unreadable runs -> exactly one Telegram warning")
+check("fails=3" in open("state/health_sunset.txt").read(), "state/health_sunset.txt counts the failures")
+def boom(): raise RuntimeError("timeout")
+CK.read_page = boom
+try:
+    CK.main()
+except RuntimeError:
+    check("fails=4" in open("state/health_sunset.txt").read() and "RuntimeError" in open("state/health_sunset.txt").read(), "a crash while loading also counts, reason saved")
+# a muted run does not touch the health counter
+open("state/mute.txt", "w").write("sunset 2099-01-01T00:00:00+00:00\n")
+CK.main()
+check("fails=4" in open("state/health_sunset.txt").read(), "muted run leaves the counter alone")
+os.remove("state/mute.txt")
+# good page again -> recovery message
+CK.read_page = lambda: "\n".join(["x", "Upcoming Events", "Past Events", "a", "b", "c"])
+msgs.clear()
+try:
+    CK.main()
+except SystemExit:
+    pass
+check(any("can be read again" in m for m in msgs) and open("state/health_sunset.txt").read().strip() == "ok", "readable page again -> recovery message, counter reset")
+
+# ---- end to end: free_courts.py when no location can be read
+import free_courts as C
+C.diagnose = lambda url: None        # the tests never touch the real website
+os.chdir(tempfile.mkdtemp()); os.makedirs("state", exist_ok=True)
+C.time.sleep = lambda s: None
+def no_page(page, url): raise RuntimeError("blocked")
+C.fetch_day = no_page
+msgs.clear()
+os.environ["MODE"] = "report"          # button: warn at once
+try:
+    C.run_all(None, now=dt.datetime(2026, 11, 20, 12, 0, tzinfo=C.TZ))
+    check(False, "courts must stop when nothing can be read")
+except SystemExit as e:
+    check(e.code == 2, "free_courts.py exits with code 2")
+check(len(msgs) == 1 and "Court checks" in msgs[0], "button run: warning at once")
+os.environ["MODE"] = ""
+os.remove("state/health_courts.txt")
+msgs.clear()
+for i in range(2):
+    try:
+        C.run_all(None, now=dt.datetime(2026, 11, 20, 12, 0, tzinfo=C.TZ))
+    except SystemExit:
+        pass
+    check(len(msgs) == (0 if i == 0 else 1), f"automatic run {i + 1}: warning only after the 2nd failure")
+
+# ---- free_courts.py when every website times out: stops early and says so
+os.chdir(tempfile.mkdtemp()); os.makedirs("state", exist_ok=True)
+calls = []
+def timeouts(page, url):
+    calls.append(url); raise RuntimeError("Page.goto: Timeout 30000ms exceeded.\nCall log:\n - navigating")
+C.fetch_day = timeouts
+msgs.clear()
+os.environ["MODE"] = "urgent"
+open("state/urgent_settings.txt", "w").write("on 2026-11-19T10:00:00+00:00 days=4\n")
+C.URGENT_FLAG = C.pathlib.Path("state/urgent_settings.txt")
+try:
+    C.run_all(None, now=dt.datetime(2026, 11, 19, 12, 0, tzinfo=C.TZ))
+    check(False, "must stop when nothing answers")
+except SystemExit as e:
+    check(e.code == 2, "timeouts: exit code 2")
+n_loc = len(C.LOCATIONS) + len(C.FAR_LOCATIONS)
+check(len(calls) <= 6, f"timeouts: gave up after {len(calls)} page loads instead of {n_loc * 4} (2 per location, 3 locations)")
+check("did not answer" in open("state/health_courts.txt").read(), "timeouts: reason says the website did not answer")
+os.environ["MODE"] = ""
+
+# ---- fetch_day: a page that never goes quiet is still read; a real connection failure is not
+import importlib
+C2 = importlib.reload(C)
+class FakePage:
+    def __init__(self, goto_error=None): self.err, self.log = goto_error, []
+    def goto(self, url, wait_until=None):
+        if self.err: raise self.err
+    def wait_for_selector(self, sel, timeout=0): self.log.append("selector")
+    def wait_for_timeout(self, ms): pass
+    def evaluate(self, js): return {"ok": True}
+p = FakePage(RuntimeError("Page.goto: Timeout 30000ms exceeded.\nCall log:"))
+check(C2.fetch_day(p, "u") == {"ok": True} and p.log == ["selector"], "never-quiet page: read anyway")
+try:
+    C2.fetch_day(FakePage(RuntimeError("Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://x")), "u"); check(False, "connection failure must raise")
+except RuntimeError:
+    check(True, "connection failure still raises")
+class NoSelector(FakePage):
+    def wait_for_selector(self, sel, timeout=0): raise RuntimeError("Timeout 20000ms exceeded waiting for selector")
+try:
+    C2.fetch_day(NoSelector(RuntimeError("Page.goto: Timeout 30000ms exceeded.")), "u"); check(False, "no court list must raise")
+except RuntimeError:
+    check(C2.is_network_error(RuntimeError("Timeout 20000ms exceeded waiting for selector")), "no court list after a timeout: raises, counted as no answer")
+C2.urllib.request.urlopen = lambda *a, **k: (_ for _ in ()).throw(OSError("blocked"))
+C2.diagnose("https://example.invalid/")      # must print a line and never raise
+check(True, "diagnose never raises")
+print("FAILED:", fails) if fails else print("ALL OK")
+sys.exit(1 if fails else 0)
