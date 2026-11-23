@@ -1,0 +1,1 @@
+fails=1 | since=2026-11-23T10:16:24+00:00 | warned=0 | detail=Error: Page.goto: net::ERR_CERT_COMMON_NAME_INVALID at https://sunsetpadel.at/events Ca
