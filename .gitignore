@@ -1,0 +1,11 @@
+# Files that must never be uploaded (secrets, logins, private data, junk)
+__pycache__/
+*.pyc
+node_modules/
+.env
+secrets.json
+group_links.json
+settings.json
+auth_info/
+active_messages.json
+.DS_Store
