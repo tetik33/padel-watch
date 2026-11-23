@@ -1,0 +1,60 @@
+name: Watch events
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"   # backup schedule, every 30 minutes
+  workflow_dispatch:         # lets cron-job.org and you start it
+
+concurrency:
+  group: events
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10          # a stuck run is stopped instead of blocking the next checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install browser
+        run: |
+          pip install playwright
+          # GitHub already has Google Chrome installed; only download a browser if it is missing
+          command -v google-chrome >/dev/null || playwright install chromium
+
+      - name: Check page
+        id: check
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}   # only used to warn you when the page looks different
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python sunset_events.py
+
+      - name: Save snapshot
+        if: success() || failure()      # also after a failed check, so the "page looks different" counter is kept
+        # saves the memory files; if another run saved at the same moment, our change goes on top of the newest version
+        run: python3 -c "import shared; shared.save_files('Update snapshot', ['state/sunset_events.txt', 'state/health_sunset.txt'])"
+
+      - name: Telegram alert
+        if: steps.check.outputs.changed == 'true'
+        env:
+          TITLE: ${{ steps.check.outputs.title }}
+          SUMMARY: ${{ steps.check.outputs.summary }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram is not configured, skipping."
+            exit 0
+          fi
+          curl -s -o /dev/null -w "Telegram HTTP %{http_code}\n" -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=📅 ${TITLE}"$'\n\n'"${SUMMARY}" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode 'reply_markup={"inline_keyboard":[[{"text":"Open events page","url":"https://sunsetpadel.at/events"}]]}'

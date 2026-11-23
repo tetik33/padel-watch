@@ -31,7 +31,7 @@ jobs:
         run: pip install pyyaml
 
       - name: Check the files and run all tests
-        run: python run_tests.py
+        run: python tests/run_tests.py
 
       - name: Tell me on Telegram
         if: failure()

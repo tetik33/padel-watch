@@ -1,0 +1,47 @@
+name: Watch courts
+
+# Runs only on request: started by the Telegram listener ("padeldome check",
+# "padeldome urgent") or by you with "Run workflow". No automatic schedule.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "report = full list now, urgent = today + tomorrow watch"
+        required: false
+        default: "report"
+
+concurrency:
+  group: courts
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  courts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20          # a stuck run is stopped instead of blocking the next checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install browser
+        run: |
+          pip install playwright
+          # GitHub already has Google Chrome installed; only download a browser if it is missing
+          command -v google-chrome >/dev/null || playwright install chromium
+
+      - name: Check courts
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MODE: ${{ inputs.mode }}
+        run: python free_courts.py
+
+      - name: Save snapshot
+        if: success() || failure()      # also after a failed check, so the "page looks different" counter is kept
+        # saves the memory files; if another run saved at the same moment, our change goes on top of the newest version
+        run: python3 -c "import shared; shared.save_files('Update court snapshot', ['state/free_courts.txt', 'state/urgent_reported.txt', 'state/health_courts.txt'])"

@@ -1,0 +1,49 @@
+name: Padel-Austria tournaments
+
+# Hourly check of https://padel-austria.at/tournaments (Wien, Starter, Offener Bewerb / Herren).
+# The Telegram button "Padel-Austria tournaments" starts it with mode=report.
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "report = send the full list now"
+        required: false
+        default: ""
+
+concurrency:
+  group: padel-events
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  events:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15          # a stuck run is stopped instead of blocking the next checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install browser
+        run: |
+          pip install playwright
+          # GitHub already has Google Chrome installed; only download a browser if it is missing
+          command -v google-chrome >/dev/null || playwright install chromium
+
+      - name: Check events
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MODE: ${{ inputs.mode }}
+        run: python tournaments.py
+
+      - name: Save state
+        if: success() || failure()      # also after a failed check, so the "page looks different" counter is kept
+        # saves the memory files; if another run saved at the same moment, our change goes on top of the newest version
+        run: python3 -c "import shared; shared.save_files('Update Padel Austria events state', ['state/tournaments.txt', 'state/health_events.txt'])"
