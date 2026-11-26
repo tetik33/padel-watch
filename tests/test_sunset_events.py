@@ -12,6 +12,8 @@ class Page:
             raise Exception(self.errors.pop(0))
     def wait_for_timeout(self, ms): self.waits.append(ms)
     def inner_text(self, sel): return "page text"
+    def wait_for_function(self, js, timeout=None): self.waited = timeout
+    def title(self): return "Sun Set Padel"
 class Browser:
     def __init__(self, page): self.page = page
     def new_page(self): return self.page
@@ -34,4 +36,9 @@ except Exception as e: assert "ERR_CERT" in str(e) and page.gotos == 2
 page, rp = run(["Timeout 30000ms exceeded"])
 try: rp(); raise SystemExit("other errors are not retried")
 except Exception as e: assert page.gotos == 1
-print("test_sunset_retry OK")
+# the page is given up to 20 s to show its events, and the title is kept for the log
+page, rp = run([]); rp()
+assert page.waited == 20000 and CK.LAST_TITLE == "Sun Set Padel"
+CK.LAST_TITLE = "Just a moment..."
+assert "bot protection" in CK.describe_page("Just a moment...\nChecking your browser")
+print("test_sunset_events OK")
