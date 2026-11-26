@@ -1,1 +1,1 @@
-fails=35 | since=2026-11-26T02:15:47+00:00 | warned=0 | detail=no events found on the page
+fails=36 | since=2026-11-26T02:15:47+00:00 | warned=0 | detail=no events found on the page
