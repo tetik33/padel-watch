@@ -135,6 +135,24 @@ def build_changes(events, old, now=None):
     return title, message
 
 
+LAST_TITLE = ""
+
+
+def describe_page(text):
+    """What the page showed, for the log, when no events were found (public text only)."""
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    low = text.lower()
+    hint = next((name for key, name in (("just a moment", "a 'checking your browser' page (bot protection)"),
+                                        ("cloudflare", "a Cloudflare page"), ("captcha", "a captcha"),
+                                        ("access denied", "'access denied'"), ("403", "an error 403"),
+                                        ("maintenance", "a maintenance page"), ("wartung", "a maintenance page"),
+                                        ("upcoming events", "the events page, but without events"))
+                 if key in low), None)
+    return (f"page title: {LAST_TITLE!r} · {len(text)} characters · {len(lines)} lines"
+            + (f" · looks like {hint}" if hint else "")
+            + "\nfirst lines: " + " | ".join(lines[:12])[:600])
+
+
 def read_page():
     from playwright.sync_api import sync_playwright
 
@@ -161,8 +179,18 @@ def read_page():
                         raise
                     print(f"Website did not load ({str(exc).splitlines()[0][:90]}), trying again in 20 s.")
                     page.wait_for_timeout(20000)
-            page.wait_for_timeout(3000)
-            return page.inner_text("body")
+            # The events are filled in a moment after the page itself: wait until they are there
+            # (at most 20 seconds), instead of a fixed 3 seconds.
+            try:
+                page.wait_for_function("document.body && /participants/i.test(document.body.innerText)",
+                                       timeout=20000)
+            except Exception:  # noqa: BLE001
+                print("No 'participants' text after 20 s.")
+            page.wait_for_timeout(1000)
+            text = page.inner_text("body")
+            global LAST_TITLE
+            LAST_TITLE = page.title()
+            return text
         finally:
             browser.close()
 
@@ -184,6 +212,7 @@ def main():
     if events is None:
         # Fail loudly (a failed run is marked in the status message) if the page looks broken.
         print("Page looks empty or changed, the script may need a fix.")
+        print("What the page showed -> " + describe_page(text))
         W.health_report("sunset", False, "no events found on the page")
         sys.exit(2)
     W.health_report("sunset", True)
