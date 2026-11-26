@@ -1,8 +1,8 @@
 {
  "open": {
   "sunset": {
-   "note": null,
-   "pending": true,
+   "note": 548,
+   "pending": false,
    "since": "2026-11-26T02:25:21+00:00"
   }
  }
