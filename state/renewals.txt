@@ -1,4 +1,12 @@
 {
+ "reminders": {
+  "github_token": [
+   578
+  ]
+ },
+ "sent": [
+  "github_token:2026-12-12:14"
+ ],
  "whatsapp": "2026-11-23",
  "wispbyte": "2026-11-23"
 }
