@@ -4,7 +4,7 @@
 2026-12-01|19:00-23:00|EUROPAHALLE: AFTERWORK CUP – STARTER|Europahalle|0
 2026-12-01|20:00-22:45|Turbo-Turnier Newcomer 🚅⚡|The Dome|0
 2026-12-04|18:00-22:00|Padeldome Alte Donau Friday NEWCOMER - INDOOR|PADELDOME Alte Donau|0
-2026-12-04|20:00-22:45|Turbo-Turnier Starter 🚅⚡|The Dome|0
+2026-12-04|20:00-22:45|Turbo-Turnier Starter 🚅⚡|The Dome|1
 2026-12-05|10:00-15:00|PD Süßenbrunn NEWCOMER|PADELDOME Süßenbrunn|1
 2026-12-05|18:00-23:00|Padeldome Alterlaa Night Circuit – STARTER 🥎|PADELDOME Alterlaa|0
 2026-12-08|18:00-20:45|Turbo-Turnier Newcomer 🚅⚡|The Dome|1
